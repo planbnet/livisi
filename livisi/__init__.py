@@ -36,6 +36,7 @@ from .livisi_const import (
     EVENT_BUTTON_PRESSED,
     EVENT_BUTTON_LONG_PRESSED,
     EVENT_MOTION_DETECTED,
+    COMMAND_RESTART,
 )
 
 # livisi_errors.py
@@ -80,6 +81,7 @@ __all__ = [
     "EVENT_BUTTON_PRESSED",
     "EVENT_BUTTON_LONG_PRESSED",
     "EVENT_MOTION_DETECTED",
+    "COMMAND_RESTART",
     # From livisi_errors.py
     "LivisiException",
     "ShcUnreachableException",
