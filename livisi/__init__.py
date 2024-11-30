@@ -3,7 +3,7 @@
 # Import key classes, constants, and exceptions
 
 # livisi_connector.py
-from .livisi_connector import LivisiConnector
+from .livisi_connector import LivisiConnection, connect
 
 # livisi_controller.py
 from .livisi_controller import LivisiController
@@ -52,7 +52,8 @@ from .livisi_errors import (
 # Define __all__ to specify what is exported when using 'from livisi import *'
 __all__ = [
     # From livisi_connector.py
-    "LivisiConnector",
+    "LivisiConnection",
+    "connect",
     # From livisi_controller.py
     "LivisiController",
     # From livisi_device.py
