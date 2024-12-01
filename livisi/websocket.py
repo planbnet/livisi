@@ -3,7 +3,7 @@ from typing import Callable
 import urllib.parse
 
 import websockets
-from pydantic import ValidationError
+import json
 
 from livisi.livisi_event import LivisiEvent
 
@@ -65,14 +65,20 @@ class Websocket:
         """Used when data is transmited using the websocket."""
         async for message in websocket:
             try:
-                event_data = LivisiEvent.parse_raw(message)
-            except ValidationError:
+                parsed_json = json.loads(message)
+                # Only include keys that are fields in the LivisiEvent dataclass
+                event_data_dict = {
+                    f.name: parsed_json.get(f.name)
+                    for f in fields(LivisiEvent)
+                }
+                event_data = LivisiEvent(**event_data_dict)
+            except json.JSONDecodeError:
+                continue
+            if event_data.properties is None:
                 continue
 
             if "device" in event_data.source:
                 event_data.source = event_data.source.replace("/device/", "")
-            if event_data.properties is None:
-                continue
 
             if event_data.type == EVENT_STATE_CHANGED:
                 if ON_STATE in event_data.properties.keys():
