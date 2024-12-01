@@ -7,7 +7,7 @@ import json
 
 from livisi.livisi_event import LivisiEvent
 
-from .livisi import AioLivisi
+from livisi import AioLivisi
 from .const import (
     AVATAR_PORT,
     IS_REACHABLE,
