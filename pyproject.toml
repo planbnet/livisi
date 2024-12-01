@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "livisi"
-version = "0.0.1"
+version = "0.0.19"
 description = "Connection library for the abandoned Livisi Smart Home system"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.8"
 authors = [
-    { name = "Felix Rotthowe", email = "felix@planbnet.org" },
+  { name = "Stefan Iacob", email = "stefan.iacob.extern@livisi.de" },
+  { name = "Felix Rotthowe", email = "felix@planbnet.org" },
 ]
 license = { file = "LICENSE" }
 classifiers = [
