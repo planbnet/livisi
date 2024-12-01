@@ -5,9 +5,9 @@ import urllib.parse
 import websockets
 from pydantic import ValidationError
 
-from aiolivisi.livisi_event import LivisiEvent
+from livisi.livisi_event import LivisiEvent
 
-from .aiolivisi import AioLivisi
+from .livisi import AioLivisi
 from .const import (
     AVATAR_PORT,
     IS_REACHABLE,
@@ -30,18 +30,18 @@ from .const import (
 class Websocket:
     """Represents the websocket class."""
 
-    def __init__(self, aiolivisi: AioLivisi) -> None:
+    def __init__(self, livisi: AioLivisi) -> None:
         """Initialize the websocket."""
-        self.aiolivisi = aiolivisi
+        self.livisi = livisi
         self.connection_url: str = None
 
     async def connect(self, on_data, on_close, port: int) -> None:
         """Connect to the socket."""
         if port == AVATAR_PORT:
-            token = urllib.parse.quote(self.aiolivisi.token)
+            token = urllib.parse.quote(self.livisi.token)
         else:
-            token = self.aiolivisi.token
-        ip_address = self.aiolivisi.livisi_connection_data["ip_address"]
+            token = self.livisi.token
+        ip_address = self.livisi.livisi_connection_data["ip_address"]
         self.connection_url = f"ws://{ip_address}:{port}/events?token={token}"
         try:
             async with websockets.connect(
