@@ -4,6 +4,7 @@ import urllib.parse
 
 import websockets
 import json
+from dataclasses import fields
 
 from livisi.livisi_event import LivisiEvent
 
