@@ -4,17 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "livisi"
-version = "0.0.1"
+version = "0.9.0"
 description = "Connection library for the abandoned Livisi Smart Home system"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
-    { name = "Felix Rotthowe", email = "felix@planbnet.org" },
+  { name = "Felix Rotthowe", email = "felix@planbnet.org" },
 ]
-license = { file = "LICENSE" }
+license = { text = "Apache-2.0" }
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
 ]
 dependencies = [
