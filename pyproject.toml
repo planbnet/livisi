@@ -12,7 +12,7 @@ authors = [
   { name = "Stefan Iacob", email = "stefan.iacob.extern@livisi.de" },
   { name = "Felix Rotthowe", email = "felix@planbnet.org" },
 ]
-license = { file = "LICENSE" }
+license = { text = "Apache-2.0" }
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
