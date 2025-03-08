@@ -18,7 +18,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "colorlog==6.8.2",
+    "colorlog>=6.8.2",
     "aiohttp>=3.8.5",
     "websockets>=11.0.3",
 ]
