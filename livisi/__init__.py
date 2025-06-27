@@ -45,7 +45,6 @@ from .livisi_errors import (
     ShcUnreachableException,
     WrongCredentialException,
     IncorrectIpAddressException,
-    TokenExpiredException,
     ErrorCodeException,
     ERROR_CODES,
 )
@@ -87,7 +86,6 @@ __all__ = [
     "ShcUnreachableException",
     "WrongCredentialException",
     "IncorrectIpAddressException",
-    "TokenExpiredException",
     "ErrorCodeException",
     "ERROR_CODES",
 ]

@@ -1,5 +1,6 @@
 """Code for communication with the Livisi application websocket."""
 
+import asyncio
 from collections.abc import Callable
 import urllib.parse
 
@@ -7,7 +8,14 @@ from json import JSONDecodeError
 import websockets.client
 
 from .livisi_json_util import parse_dataclass
-from .livisi_const import CLASSIC_WEBSOCKET_PORT, V2_WEBSOCKET_PORT, LOGGER
+from .livisi_const import (
+    CLASSIC_WEBSOCKET_PORT,
+    LIVISI_EVENT_BUTTON_PRESSED,
+    LIVISI_EVENT_MOTION_DETECTED,
+    LIVISI_EVENT_STATE_CHANGED,
+    V2_WEBSOCKET_PORT,
+    LOGGER,
+)
 from .livisi_websocket_event import LivisiWebsocketEvent
 
 
@@ -47,8 +55,8 @@ class LivisiWebsocket:
         except Exception as e:
             self._websocket = None
             LOGGER.exception("Error handling websocket connection", exc_info=e)
-            if not self._disconnecting:
-                LOGGER.warning("WebSocket disconnected unexpectedly.")
+        if not self._disconnecting:
+            LOGGER.warning("WebSocket disconnected unexpectedly.")
         await on_close()
 
     async def disconnect(self) -> None:
@@ -73,7 +81,16 @@ class LivisiWebsocket:
                     continue
 
                 if event_data.properties is None or event_data.properties == {}:
-                    LOGGER.warning("Received event with no properties, skipping.")
+                    LOGGER.debug("Received event with no properties, skipping.")
+                    LOGGER.debug("Event data: %s", event_data)
+                    if event_data.type not in [
+                        LIVISI_EVENT_STATE_CHANGED,
+                        LIVISI_EVENT_BUTTON_PRESSED,
+                        LIVISI_EVENT_MOTION_DETECTED,
+                    ]:
+                        LOGGER.info(
+                            "Received %s event from Livisi websocket", event_data.type
+                        )
                     continue
 
                 # Remove the URL prefix and use just the ID (which is unique)
@@ -85,5 +102,7 @@ class LivisiWebsocket:
                 except Exception as e:
                     LOGGER.error("Unhandled error in on_data", exc_info=e)
 
+        except asyncio.exceptions.CancelledError:
+            LOGGER.warning("Livisi WebSocket consumer handler stopped")
         except Exception as e:
             LOGGER.error("Unhandled error in WebSocket consumer handler", exc_info=e)
