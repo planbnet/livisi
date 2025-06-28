@@ -21,6 +21,7 @@ dependencies = [
     "colorlog>=6.8.2",
     "aiohttp>=3.8.5",
     "websockets>=11.0.3",
+    "python-dateutil>=2.9.0.post0",
 ]
 
 [project.urls]
