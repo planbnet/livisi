@@ -159,24 +159,30 @@ class LivisiConnection:
             self._password = password
         try:
             await self._async_retrieve_token()
+
+            self._connect_time = time.time()
+
+            self.controller = await self._async_get_controller()
+            if self.controller.is_v2:
+                # reconnect with more concurrent connections on v2 SHC
+                await self._web_session.close()
+                self._web_session = self._create_web_session(
+                    concurrent_connections=10
+                )
         except:
-            await self.close()
+            try:
+                await self.close()
+            except Exception:
+                LOGGER.exception("Error closing failed LIVISI connection")
             raise
-
-        self._connect_time = time.time()
-
-        self.controller = await self._async_get_controller()
-        if self.controller.is_v2:
-            # reconnect with more concurrent connections on v2 SHC
-            await self._web_session.close()
-            self._web_session = self._create_web_session(concurrent_connections=10)
 
     async def close(self):
         """Disconnect the http client session and websocket."""
-        if self._web_session is not None:
-            await self._web_session.close()
-            self._web_session = None
+        web_session = self._web_session
+        self._web_session = None
         self.controller = None
+        if web_session is not None:
+            await web_session.close()
         await self._websocket.disconnect()
 
     async def listen_for_events(self, on_data, on_close) -> None:
