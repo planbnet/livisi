@@ -51,41 +51,41 @@ from .livisi_websocket_event import LivisiWebsocketEvent
 
 # Define __all__ to specify what is exported when using 'from livisi import *'
 __all__ = [
+    "BATTERY_LOW",
+    "CLASSIC_WEBSOCKET_PORT",
+    "COMMAND_RESTART",
+    "CONTROLLER_DEVICE_TYPES",
+    "ERROR_CODES",
+    "EVENT_BUTTON_LONG_PRESSED",
+    "EVENT_BUTTON_PRESSED",
+    "EVENT_MOTION_DETECTED",
+    "IS_REACHABLE",
+    "LIVISI_EVENT_BUTTON_PRESSED",
+    "LIVISI_EVENT_MOTION_DETECTED",
+    "LIVISI_EVENT_STATE_CHANGED",
+    # From livisi_const.py
+    "LOGGER",
+    "REQUEST_TIMEOUT",
+    "UPDATE_AVAILABLE",
+    "V1_NAME",
+    "V2_NAME",
+    "V2_WEBSOCKET_PORT",
+    "WEBSERVICE_PORT",
+    "ErrorCodeException",
+    "IncorrectIpAddressException",
     # From livisi_connector.py
     "LivisiConnection",
-    "connect",
     # From livisi_controller.py
     "LivisiController",
     # From livisi_device.py
     "LivisiDevice",
+    # From livisi_errors.py
+    "LivisiException",
     # From livisi_websocket.py
     "LivisiWebsocket",
     # From livisi_websocket_event.py
     "LivisiWebsocketEvent",
-    # From livisi_const.py
-    "LOGGER",
-    "V2_NAME",
-    "V1_NAME",
-    "V2_WEBSOCKET_PORT",
-    "CLASSIC_WEBSOCKET_PORT",
-    "WEBSERVICE_PORT",
-    "REQUEST_TIMEOUT",
-    "CONTROLLER_DEVICE_TYPES",
-    "BATTERY_LOW",
-    "UPDATE_AVAILABLE",
-    "LIVISI_EVENT_STATE_CHANGED",
-    "LIVISI_EVENT_BUTTON_PRESSED",
-    "LIVISI_EVENT_MOTION_DETECTED",
-    "IS_REACHABLE",
-    "EVENT_BUTTON_PRESSED",
-    "EVENT_BUTTON_LONG_PRESSED",
-    "EVENT_MOTION_DETECTED",
-    "COMMAND_RESTART",
-    # From livisi_errors.py
-    "LivisiException",
     "ShcUnreachableException",
     "WrongCredentialException",
-    "IncorrectIpAddressException",
-    "ErrorCodeException",
-    "ERROR_CODES",
+    "connect",
 ]

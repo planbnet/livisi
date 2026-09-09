@@ -114,7 +114,7 @@ class TokenExpiredException(LivisiException):
 class ErrorCodeException(LivisiException):
     """The request sent an errorcode (other than token expired) as response."""
 
-    def __init__(self, error_code: int, message: str = None, *args: object) -> None:
+    def __init__(self, error_code: int, message: str | None = None, *args: object) -> None:
         """Generate error with code."""
         self.error_code = error_code
         if (message is None) and (error_code in ERROR_CODES):
