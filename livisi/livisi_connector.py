@@ -9,11 +9,11 @@ import json
 import time
 import uuid
 from contextlib import suppress
+from datetime import datetime
 from typing import Any
 
 from aiohttp import ClientConnectorError, ClientResponseError, ServerDisconnectedError
 from aiohttp.client import ClientError, ClientSession, TCPConnector
-from dateutil.parser import parse as parse_timestamp
 
 from .livisi_const import (
     COMMAND_RESTART,
@@ -544,11 +544,18 @@ class LivisiConnection:
                 continue
 
             msgtype = message.get("type", "")
+            timestamp = message.get("timestamp")
             try:
-                parse_timestamp(message.get("timestamp", ""))
+                # Only validate that the timestamp is well-formed; the parsed
+                # value is not used further. Replace a trailing "Z" so that
+                # datetime.fromisoformat accepts it on Python 3.10. A malformed
+                # timestamp must not discard the whole message, so we only log.
+                if timestamp is not None:
+                    datetime.fromisoformat(
+                        str(timestamp).replace("Z", "+00:00")
+                    )
             except (TypeError, ValueError, OverflowError):
                 LOGGER.warning("Message contains an invalid timestamp")
-                continue
 
             device_ids = [
                 d.removeprefix("/device/") for d in message.get("devices", [])

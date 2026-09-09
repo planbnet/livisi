@@ -257,12 +257,29 @@ class TestLivisiConnection(IsolatedAsyncioTestCase):
         self.assertEqual(len(devices), 1)
         self.assertEqual(devices[0].state, {})
 
-    def test_invalid_messages_are_ignored(self) -> None:
-        """Test malformed messages do not break device polling."""
+    def test_non_dict_messages_are_ignored(self) -> None:
+        """Test non-dict messages do not break device polling."""
+        connection = LivisiConnection()
+
+        parsed = connection.parse_messages([None, "invalid", {}])
+
+        self.assertEqual(parsed, (set(), set(), set(), set()))
+
+    def test_message_with_invalid_timestamp_is_still_processed(self) -> None:
+        """A malformed timestamp must not discard the whole message."""
         connection = LivisiConnection()
 
         parsed = connection.parse_messages(
-            [None, "invalid", {}, {"type": "DeviceLowBattery", "timestamp": "bad"}]
+            [
+                {
+                    "type": "DeviceLowBattery",
+                    "timestamp": "bad",
+                    "devices": ["/device/123"],
+                }
+            ]
         )
 
-        self.assertEqual(parsed, (set(), set(), set(), set()))
+        # low_battery_devices contains the id despite the bad timestamp.
+        self.assertEqual(
+            parsed, ({"123"}, set(), set(), set())
+        )
