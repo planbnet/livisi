@@ -1,5 +1,9 @@
 """Code for communication with the Livisi application websocket."""
 
+# BLE001: WebSocket handler loops intentionally catch any Exception so a
+# failing callback or consumer can never take down the whole connection.
+# ruff: noqa: BLE001
+
 import asyncio
 import urllib.parse
 from collections.abc import Callable
