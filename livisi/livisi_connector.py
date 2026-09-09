@@ -3,44 +3,39 @@
 from __future__ import annotations
 
 import asyncio
-import time
 import base64
-
-from contextlib import suppress
-
-from typing import Any
-import uuid
+import binascii
 import json
+import time
+import uuid
+from contextlib import suppress
+from typing import Any
 
-from aiohttp import ClientResponseError, ServerDisconnectedError, ClientConnectorError
-from aiohttp.client import ClientSession, ClientError, TCPConnector
+from aiohttp import ClientConnectorError, ClientResponseError, ServerDisconnectedError
+from aiohttp.client import ClientError, ClientSession, TCPConnector
 from dateutil.parser import parse as parse_timestamp
-
-from .livisi_device import LivisiDevice
-
-from .livisi_json_util import parse_dataclass
-from .livisi_controller import LivisiController
-
-from .livisi_errors import (
-    ERROR_CODES,
-    IncorrectIpAddressException,
-    LivisiException,
-    ShcUnreachableException,
-    WrongCredentialException,
-    ErrorCodeException,
-)
-
-from .livisi_websocket import LivisiWebsocket
 
 from .livisi_const import (
     COMMAND_RESTART,
     CONTROLLER_DEVICE_TYPES,
-    V1_NAME,
-    V2_NAME,
     LOGGER,
     REQUEST_TIMEOUT,
+    V1_NAME,
+    V2_NAME,
     WEBSERVICE_PORT,
 )
+from .livisi_controller import LivisiController
+from .livisi_device import LivisiDevice
+from .livisi_errors import (
+    ERROR_CODES,
+    ErrorCodeException,
+    IncorrectIpAddressException,
+    LivisiException,
+    ShcUnreachableException,
+    WrongCredentialException,
+)
+from .livisi_json_util import parse_dataclass
+from .livisi_websocket import LivisiWebsocket
 
 
 async def connect(host: str, password: str) -> LivisiConnection:
@@ -66,7 +61,7 @@ class LivisiConnection:
         self._websocket = LivisiWebsocket(self)
         self._token_refresh_lock = asyncio.Lock()
 
-    def _decode_jwt_payload(self, token: str) -> dict | None:
+    def _decode_jwt_payload(self, token: str | None) -> dict | None:
         """Decode JWT payload and return payload dict or None on error."""
         if not token:
             return None
@@ -85,18 +80,13 @@ class LivisiConnection:
             if padding != 4:
                 payload += "=" * padding
 
-            try:
-                decoded_bytes = base64.urlsafe_b64decode(payload)
-                payload_json = json.loads(decoded_bytes.decode("utf-8"))
-                return payload_json
-
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                return None
-
-        except Exception:
+            decoded_bytes = base64.urlsafe_b64decode(payload)
+            decoded_payload = json.loads(decoded_bytes.decode("utf-8"))
+            return decoded_payload if isinstance(decoded_payload, dict) else None
+        except (binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
             return None
 
-    def _format_token_info(self, token: str) -> str:
+    def _format_token_info(self, token: str | None) -> str:
         """Format token information for logging."""
         payload = self._decode_jwt_payload(token)
         if not payload:
@@ -117,9 +107,9 @@ class LivisiConnection:
             if exp_time > current_time:
                 time_left = exp_time - current_time
                 if time_left > 3600:
-                    info_parts.append(f"expires in: {time_left/3600:.1f}h")
+                    info_parts.append(f"expires in: {time_left / 3600:.1f}h")
                 elif time_left > 60:
-                    info_parts.append(f"expires in: {time_left/60:.1f}m")
+                    info_parts.append(f"expires in: {time_left / 60:.1f}m")
                 else:
                     info_parts.append(f"expires in: {time_left:.0f}s")
             else:
@@ -130,9 +120,9 @@ class LivisiConnection:
             iat_time = payload["iat"]
             age = time.time() - iat_time
             if age > 3600:
-                info_parts.append(f"age: {age/3600:.1f}h")
+                info_parts.append(f"age: {age / 3600:.1f}h")
             elif age > 60:
-                info_parts.append(f"age: {age/60:.1f}m")
+                info_parts.append(f"age: {age / 60:.1f}m")
             else:
                 info_parts.append(f"age: {age:.0f}s")
 
@@ -149,7 +139,7 @@ class LivisiConnection:
         else:
             return f"JWT({len(payload)} claims)"
 
-    async def connect(self, host: str, password: str):
+    async def connect(self, host: str, password: str) -> None:
         """Connect to the livisi SHC and retrieve controller information."""
         if self._web_session is not None:
             await self.close()
@@ -159,25 +149,43 @@ class LivisiConnection:
             self._password = password
         try:
             await self._async_retrieve_token()
-        except:
-            await self.close()
+
+            self._connect_time = time.time()
+
+            self.controller = await self._async_get_controller()
+            if self.controller.is_v2:
+                # Reconnect with more concurrent connections on v2 SHC.
+                web_session = self._web_session
+                self._web_session = None
+                await web_session.close()
+                self._web_session = self._create_web_session(concurrent_connections=10)
+        except asyncio.CancelledError:
+            await self._async_cleanup_failed_connection()
             raise
+        except LivisiException:
+            await self._async_cleanup_failed_connection()
+            raise
+        except Exception as exc:
+            await self._async_cleanup_failed_connection()
+            raise LivisiException("Failed to connect to SHC") from exc
 
-        self._connect_time = time.time()
+    async def _async_cleanup_failed_connection(self) -> None:
+        """Close resources without masking the original connection error."""
+        try:
+            await self.close()
+        except Exception:  # noqa: BLE001
+            LOGGER.exception("Error closing failed LIVISI connection")
 
-        self.controller = await self._async_get_controller()
-        if self.controller.is_v2:
-            # reconnect with more concurrent connections on v2 SHC
-            await self._web_session.close()
-            self._web_session = self._create_web_session(concurrent_connections=10)
-
-    async def close(self):
+    async def close(self) -> None:
         """Disconnect the http client session and websocket."""
-        if self._web_session is not None:
-            await self._web_session.close()
-            self._web_session = None
+        web_session = self._web_session
+        self._web_session = None
         self.controller = None
-        await self._websocket.disconnect()
+        try:
+            if web_session is not None:
+                await web_session.close()
+        finally:
+            await self._websocket.disconnect()
 
     async def listen_for_events(self, on_data, on_close) -> None:
         """Connect to the websocket."""
@@ -196,12 +204,15 @@ class LivisiConnection:
     ) -> dict:
         """Make a request to the Livisi Smart Home controller."""
         url = f"http://{self.host}:{WEBSERVICE_PORT}/{path}"
-        auth_headers = {
+        return await self._async_request(method, url, payload)
+
+    def _authorization_headers(self) -> dict[str, str]:
+        """Return authorization headers using the current token."""
+        return {
             "authorization": f"Bearer {self.token}",
             "Content-type": "application/json",
             "Accept": "*/*",
         }
-        return await self._async_request(method, url, payload, auth_headers)
 
     def _create_web_session(self, concurrent_connections: int = 1):
         """Create a custom web session which limits concurrent connections."""
@@ -260,14 +271,6 @@ class LivisiConnection:
                 LOGGER.error(access_data)
                 raise LivisiException(f"No token received from SHC: {errordesc}")
             self._connect_time = time.time()
-        except ClientError as error:
-            LOGGER.debug("Error connecting to SHC: %s", error)
-            if len(access_data) == 0:
-                raise IncorrectIpAddressException from error
-            raise ShcUnreachableException from error
-        except TimeoutError as error:
-            LOGGER.debug("Timeout waiting for SHC")
-            raise ShcUnreachableException("Timeout waiting for shc") from error
         except ClientResponseError as error:
             LOGGER.debug("SHC response: %s", error.message)
             if error.status == 401:
@@ -275,6 +278,19 @@ class LivisiConnection:
             raise LivisiException(
                 f"Invalid response from SHC, response code {error.status} ({error.message})"
             ) from error
+        except ClientConnectorError as error:
+            LOGGER.debug("Error connecting to SHC: %s", error)
+            if len(access_data) == 0:
+                raise IncorrectIpAddressException from error
+            raise ShcUnreachableException from error
+        except TimeoutError as error:
+            LOGGER.debug("Timeout waiting for SHC")
+            raise ShcUnreachableException("Timeout waiting for shc") from error
+        except ClientError as error:
+            LOGGER.debug("Error connecting to SHC: %s", error)
+            raise ShcUnreachableException from error
+        except LivisiException:
+            raise
         except Exception as error:
             LOGGER.debug("Error retrieving token from SHC: %s", error)
             raise LivisiException("Error retrieving token from SHC") from error
@@ -304,10 +320,23 @@ class LivisiConnection:
                     self._format_token_info(self.token),
                 )
 
-    async def _async_request(
-        self, method, url: str, payload=None, headers=None
-    ) -> dict:
+    async def _async_request(self, method, url: str, payload=None) -> dict:
         """Send a request to the Livisi Smart Home controller and handle requesting new token."""
+
+        async def send_request() -> dict:
+            try:
+                return await self._async_send_request(
+                    method,
+                    url,
+                    payload,
+                    self._authorization_headers(),
+                )
+            except LivisiException:
+                raise
+            except TimeoutError as exc:
+                raise ShcUnreachableException("Timeout waiting for shc") from exc
+            except ClientError as exc:
+                raise ShcUnreachableException("Request to shc failed") from exc
 
         # Check if the token is expired (not sure if this works on V1 SHC, so keep the old 2007 refresh code below too)
         token_payload = self._decode_jwt_payload(self.token)
@@ -326,7 +355,7 @@ class LivisiConnection:
                     raise
 
         # now send the request
-        response = await self._async_send_request(method, url, payload, headers)
+        response = await send_request()
 
         if response is not None and "errorcode" in response:
             errorcode = response.get("errorcode")
@@ -340,9 +369,7 @@ class LivisiConnection:
 
                 # Retry the original request with the (possibly new) token
                 try:
-                    response = await self._async_send_request(
-                        method, url, payload, headers
-                    )
+                    response = await send_request()
                 except Exception as e:
                     LOGGER.error(
                         "Unhandled error re-sending request after token update",
@@ -374,39 +401,33 @@ class LivisiConnection:
     async def _async_send_request(
         self, method, url: str, payload=None, headers=None
     ) -> dict:
-        try:
-            if payload is not None:
-                data = json.dumps(payload).encode("utf-8")
-                if headers is None:
-                    headers = {}
-                headers["Content-Type"] = "application/json"
-                headers["Content-Encoding"] = "utf-8"
-            else:
-                data = None
+        web_session = self._web_session
+        if web_session is None:
+            raise LivisiException("Not connected to SHC")
 
-            async with self._web_session.request(
-                method,
-                url,
-                json=payload,
-                headers=headers,
-                ssl=False,
-                timeout=REQUEST_TIMEOUT,
-            ) as res:
-                try:
-                    data = await res.json()
-                    if data is None and res.status != 200:
-                        raise LivisiException(
-                            f"No data received from SHC, response code {res.status} ({res.reason})"
-                        )
-                except ClientResponseError as exc:
-                    raise LivisiException(
-                        f"Invalid response from SHC, response code {res.status} ({res.reason})"
-                    ) from exc
-                return data
-        except TimeoutError as exc:
-            raise ShcUnreachableException("Timeout waiting for shc") from exc
-        except ClientConnectorError as exc:
-            raise ShcUnreachableException("Failed to connect to shc") from exc
+        async with web_session.request(
+            method,
+            url,
+            json=payload,
+            headers=headers,
+            ssl=False,
+            timeout=REQUEST_TIMEOUT,
+        ) as res:
+            try:
+                data = await res.json()
+            except (
+                ClientResponseError,
+                json.JSONDecodeError,
+                UnicodeDecodeError,
+            ) as exc:
+                raise LivisiException(
+                    f"Invalid response from SHC, response code {res.status} ({res.reason})"
+                ) from exc
+            if data is None and res.status != 200:
+                raise LivisiException(
+                    f"No data received from SHC, response code {res.status} ({res.reason})"
+                )
+            return data
 
     async def _async_get_controller(self) -> LivisiController:
         """Get Livisi Smart Home controller data."""
@@ -447,6 +468,7 @@ class LivisiConnection:
                 LOGGER.warning(f"Error loading {path}")
                 raise result  # Re-raise the exception immediately
 
+        shc_state = {}
         controller_id = next(
             (x.get("id") for x in devices if x.get("type") in CONTROLLER_DEVICE_TYPES),
             None,
@@ -458,7 +480,7 @@ class LivisiConnection:
                 )
                 if self.controller.is_v1:
                     shc_state = shc_state["state"]
-            except Exception:
+            except (KeyError, LivisiException, TypeError):
                 LOGGER.warning("Error getting shc state", exc_info=True)
 
         capability_map = {}
@@ -517,14 +539,15 @@ class LivisiConnection:
         updated_devices = set()
 
         for message in messages:
-            if isinstance(message, str):
+            if not isinstance(message, dict):
                 LOGGER.warning("Invalid message")
-                LOGGER.warning(messages)
                 continue
 
             msgtype = message.get("type", "")
-            msgtimestamp = parse_timestamp(message.get("timestamp", ""))
-            if msgtimestamp is None:
+            try:
+                parse_timestamp(message.get("timestamp", ""))
+            except (TypeError, ValueError, OverflowError):
+                LOGGER.warning("Message contains an invalid timestamp")
                 continue
 
             device_ids = [
@@ -571,13 +594,14 @@ class LivisiConnection:
 
         try:
             response = await self.async_send_authorized_request("get", requestUrl)
-        except Exception as e:
-            # just debug log the exception but let the caller handle it
+        except LivisiException:
+            raise
+        except Exception as exc:
             LOGGER.debug(
                 "Unhandled error requesting device value",
-                exc_info=e,
+                exc_info=exc,
             )
-            raise
+            raise LivisiException("Error requesting device value") from exc
 
         if response is None:
             return None
@@ -589,8 +613,8 @@ class LivisiConnection:
         self,
         capability_id: str,
         *,
-        key: str = None,
-        value: bool | float = None,
+        key: str | None = None,
+        value: bool | float | None = None,
         namespace: str = "core.RWE",
     ) -> bool:
         """Set the state of a capability."""
@@ -608,7 +632,7 @@ class LivisiConnection:
         command_type: str,
         *,
         namespace: str = "core.RWE",
-        params: dict = None,
+        params: dict | None = None,
     ) -> bool:
         """Send a command to a target."""
 
@@ -629,10 +653,12 @@ class LivisiConnection:
             if response is None:
                 return False
             return response.get("resultCode") == "Success"
-        except ServerDisconnectedError:
+        except ShcUnreachableException as exc:
             # Funny thing: The SHC restarts immediatly upon processing the restart command, it doesn't even answer to the request
             # In order to not throw an error we need to catch and assume the request was successfull.
-            if command_type == COMMAND_RESTART:
+            if command_type == COMMAND_RESTART and isinstance(
+                exc.__cause__, ServerDisconnectedError
+            ):
                 return True
             raise
 
@@ -642,7 +668,7 @@ class LivisiConnection:
         command_type: str,
         *,
         namespace: str = "core.RWE",
-        params: dict = None,
+        params: dict | None = None,
     ) -> bool:
         """Send a command to a device."""
 
@@ -659,7 +685,7 @@ class LivisiConnection:
         command_type: str,
         *,
         namespace: str = "core.RWE",
-        params: dict = None,
+        params: dict | None = None,
     ) -> bool:
         """Send a command to a capability."""
 
