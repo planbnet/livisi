@@ -1,9 +1,9 @@
 """Code to represent a livisi device."""
 
 from __future__ import annotations
-from typing import Any
 
 from dataclasses import dataclass
+from typing import Any
 
 from .livisi_const import CONTROLLER_DEVICE_TYPES
 

@@ -1,7 +1,7 @@
 """Helper code to parse json to python dataclass (simple and non recursive)."""
-from dataclasses import fields
 import json
 import re
+from dataclasses import fields
 
 
 def parse_dataclass(jsondata, clazz):

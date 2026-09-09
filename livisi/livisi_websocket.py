@@ -1,21 +1,21 @@
 """Code for communication with the Livisi application websocket."""
 
 import asyncio
-from collections.abc import Callable
 import urllib.parse
-
+from collections.abc import Callable
 from json import JSONDecodeError
+
 import websockets.client
 
-from .livisi_json_util import parse_dataclass
 from .livisi_const import (
     CLASSIC_WEBSOCKET_PORT,
     LIVISI_EVENT_BUTTON_PRESSED,
     LIVISI_EVENT_MOTION_DETECTED,
     LIVISI_EVENT_STATE_CHANGED,
-    V2_WEBSOCKET_PORT,
     LOGGER,
+    V2_WEBSOCKET_PORT,
 )
+from .livisi_json_util import parse_dataclass
 from .livisi_websocket_event import LivisiWebsocketEvent
 
 
