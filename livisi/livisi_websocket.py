@@ -55,10 +55,15 @@ class LivisiWebsocket:
                 LOGGER.info("WebSocket connection established.")
                 self._websocket = websocket
                 await self.consumer_handler(websocket, on_data)
-                self._websocket = None
+        except asyncio.CancelledError:
+            # Propagate cancellation so the caller's task really stops instead
+            # of treating it as a normal disconnect and reconnecting.
+            LOGGER.debug("Livisi WebSocket connection cancelled")
+            raise
         except Exception as e:
-            self._websocket = None
             LOGGER.exception("Error handling websocket connection", exc_info=e)
+        finally:
+            self._websocket = None
         if not self._disconnecting:
             LOGGER.warning("WebSocket disconnected unexpectedly.")
         await on_close()
@@ -106,7 +111,8 @@ class LivisiWebsocket:
                 except Exception as e:
                     LOGGER.error("Unhandled error in on_data", exc_info=e)
 
-        except asyncio.exceptions.CancelledError:
-            LOGGER.warning("Livisi WebSocket consumer handler stopped")
+        except asyncio.CancelledError:
+            LOGGER.debug("Livisi WebSocket consumer handler stopped")
+            raise
         except Exception as e:
             LOGGER.error("Unhandled error in WebSocket consumer handler", exc_info=e)
